@@ -1,5 +1,4 @@
-// Your PC's local IP - phone and laptop on the same WiFi will reach this
-const API_URL = 'http://192.168.0.103:8080/api';
+const API_URL = 'https://neon-aura-backend.onrender.com/api';
 
 const handleResponse = async (res) => {
   const data = await res.json().catch(() => ({}));
