@@ -45,11 +45,20 @@ export default function MatchmakingPage() {
     });
   }, [navigate, location.state?.autoSearch]);
 
+
   const startSearch = () => {
     const client = getStompClient();
     if (client?.connected) {
       setStatus('SEARCHING');
       client.publish({ destination: '/app/chat.findMatch', body: '' });
+    }
+  };
+
+  const cancelSearch = () => {
+    const client = getStompClient();
+    if (client?.connected) {
+      setStatus('IDLE');
+      client.publish({ destination: '/app/chat.leaveMatch', body: '' });
     }
   };
 
@@ -89,6 +98,7 @@ export default function MatchmakingPage() {
       </div>
 
       {/* Orb / Match Button */}
+
       <div className="match-orbit">
         {isSearching && (
           <>
@@ -98,18 +108,30 @@ export default function MatchmakingPage() {
           </>
         )}
 
-        <button
-          className={`match-btn ${isSearching ? 'searching' : ''} ${isMatched ? 'matched' : ''}`}
-          onClick={startSearch}
-          disabled={status !== 'IDLE'}
-        >
-          <span className="btn-icon-inner">
-            {isMatched ? '✦' : isSearching ? '◉' : '⊕'}
-          </span>
-          <span className="btn-label">
-            {isMatched ? 'Connected' : isSearching ? 'Scanning…' : 'Find Partner'}
-          </span>
-        </button>
+        {/* Show Cancel button when searching, otherwise show Find Partner button */}
+        {isSearching ? (
+          <button
+            className="match-btn searching"
+            onClick={cancelSearch}
+            disabled={isMatched}
+          >
+            <span className="btn-icon-inner">✖</span>
+            <span className="btn-label">Cancel</span>
+          </button>
+        ) : (
+          <button
+            className={`match-btn ${isMatched ? 'matched' : ''}`}
+            onClick={startSearch}
+            disabled={status !== 'IDLE'}
+          >
+            <span className="btn-icon-inner">
+              {isMatched ? '✦' : '⊕'}
+            </span>
+            <span className="btn-label">
+              {isMatched ? 'Connected' : 'Find Partner'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Footer hint */}
