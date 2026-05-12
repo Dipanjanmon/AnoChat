@@ -43,7 +43,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://192.168.*.*:*", "http://172.*.*.*:*", "http://10.*.*.*:*")); // Allow all local network devices
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:*",
+            "http://192.168.*.*:*",
+            "http://172.*.*.*:*",
+            "http://10.*.*.*:*",
+            "https://*.onrender.com",   // Render production frontend
+            "https://neon-aura.onrender.com" // explicit
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

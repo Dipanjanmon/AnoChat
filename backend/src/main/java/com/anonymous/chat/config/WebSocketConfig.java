@@ -39,7 +39,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("http://localhost:*", "http://192.168.*.*:*", "http://172.*.*.*:*", "http://10.*.*.*:*")
+                .setAllowedOriginPatterns(
+                    "http://localhost:*",
+                    "http://192.168.*.*:*",
+                    "http://172.*.*.*:*",
+                    "http://10.*.*.*:*",
+                    "https://*.onrender.com",
+                    "https://neon-aura.onrender.com"
+                )
                 .withSockJS();
     }
 
