@@ -1,100 +1,123 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { connectWebSocket, disconnectWebSocket, getStompClient } from '../services/websocket';
-import { getLiveStats } from '../services/api';
+import { getLiveStats, signOut } from '../services/api';
 
 export default function MatchmakingPage() {
-  const [status, setStatus] = useState('IDLE'); // IDLE, SEARCHING, MATCHED
+  const [status, setStatus] = useState('IDLE');
   const [liveUsers, setLiveUsers] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const token = localStorage.getItem('chat_token');
-    if (!token) {
-      navigate('/');
-      return;
-    }
+    if (!token) { navigate('/'); return; }
 
-    // Fetch initial stats
     getLiveStats().then(data => {
-      if (data && data.liveUsers !== undefined) {
-        setLiveUsers(data.liveUsers);
-      }
+      if (data?.liveUsers !== undefined) setLiveUsers(data.liveUsers);
     });
 
-    connectWebSocket(token, (frame) => {
+    connectWebSocket(token, () => {
       const client = getStompClient();
-      
-      // Subscribe to live stats
-      client.subscribe('/topic/stats', (message) => {
-        const data = JSON.parse(message.body);
-        setLiveUsers(data.liveUsers || 0);
+
+      client.subscribe('/topic/stats', (msg) => {
+        const d = JSON.parse(msg.body);
+        setLiveUsers(d.liveUsers || 0);
       });
 
-      // Subscribe to personal queue for matchmaking events
-      client.subscribe('/user/queue/match', (message) => {
-        const data = JSON.parse(message.body);
-        if (data.status === 'matched') {
+      client.subscribe('/user/queue/match', (msg) => {
+        const d = JSON.parse(msg.body);
+        if (d.status === 'matched') {
           setStatus('MATCHED');
           setTimeout(() => {
-            navigate('/chat', { state: { partner: data.partner, roomId: data.roomId } });
-          }, 1500);
-        } else if (data.status === 'waiting') {
+            navigate('/chat', { state: { partner: d.partner, roomId: d.roomId } });
+          }, 1200);
+        } else if (d.status === 'waiting') {
           setStatus('SEARCHING');
         }
       });
-    });
 
-  }, [navigate]);
+      // Auto-search if redirected from a Skip action
+      if (location.state?.autoSearch) {
+        setStatus('SEARCHING');
+        client.publish({ destination: '/app/chat.findMatch', body: '' });
+      }
+    });
+  }, [navigate, location.state?.autoSearch]);
 
   const startSearch = () => {
-    setStatus('SEARCHING');
     const client = getStompClient();
-    if (client && client.connected) {
+    if (client?.connected) {
+      setStatus('SEARCHING');
       client.publish({ destination: '/app/chat.findMatch', body: '' });
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await signOut(); } catch (_) {}   // Best-effort — always clear local state
     localStorage.removeItem('chat_token');
     disconnectWebSocket();
     navigate('/');
   };
 
+  const isSearching = status === 'SEARCHING';
+  const isMatched  = status === 'MATCHED';
+
   return (
-    <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', position: 'relative' }}>
-      <button onClick={handleLogout} className="btn-danger" style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent' }}>Disconnect</button>
-      
-      <div style={{ textAlign: 'center', marginBottom: '60px' }}>
-        <div className="live-counter">
-          <div className="dot"></div>
-          {liveUsers} STRANGERS LIVE
-        </div>
-        <h1 style={{ fontSize: '3rem', marginBottom: '10px' }} className="gradient-text">Aura Matchmaking</h1>
-        <p className="text-muted">Initiate a secure, ephemeral connection.</p>
+    <div className="matchmaking-page">
+      {/* Top-right logout */}
+      <div className="matchmaking-topbar">
+        <button onClick={handleLogout} className="btn btn-danger">Sign out</button>
       </div>
-      
-      <div style={{ position: 'relative', width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {status === 'SEARCHING' && (
-          <div className="aura-ring" style={{ width: '100%', height: '100%' }}></div>
+
+      {/* Info block */}
+      <div className="matchmaking-info">
+        <span className="live-badge" style={{ marginBottom: 20 }}>
+          <span className="live-dot" />
+          {liveUsers} {liveUsers === 1 ? 'stranger' : 'strangers'} live now
+        </span>
+        <h1 className={isMatched ? 'gradient-text' : ''}>
+          {isMatched ? 'Connected!' : isSearching ? 'Searching…' : 'Find a Stranger'}
+        </h1>
+        <p className="text-muted" style={{ marginTop: 10 }}>
+          {isMatched
+            ? 'A connection was secured. Entering the void…'
+            : isSearching
+            ? 'Scanning the void for a signal…'
+            : 'Tap the orb to initiate an anonymous connection.'}
+        </p>
+      </div>
+
+      {/* Orb / Match Button */}
+      <div className="match-orbit">
+        {isSearching && (
+          <>
+            <div className="aura-ring" />
+            <div className="aura-ring-2" />
+            <div className="aura-ring-3" />
+          </>
         )}
-        
-        <button 
-          onClick={startSearch} 
+
+        <button
+          className={`match-btn ${isSearching ? 'searching' : ''} ${isMatched ? 'matched' : ''}`}
+          onClick={startSearch}
           disabled={status !== 'IDLE'}
-          className="match-btn"
-          style={{ 
-            background: status === 'MATCHED' ? 'var(--accent-violet)' : 'var(--glass-bg)',
-            color: 'white',
-            border: status === 'IDLE' ? '1px solid var(--accent-cyan)' : '1px solid transparent',
-            cursor: status === 'IDLE' ? 'pointer' : 'default',
-            boxShadow: status === 'SEARCHING' ? '0 0 30px rgba(0, 240, 255, 0.2)' : '0 10px 30px rgba(0,0,0,0.5)'
-          }}
         >
-          {status === 'IDLE' ? 'FIND PARTNER' : status === 'SEARCHING' ? 'SEARCHING...' : 'CONNECTION SECURED'}
+          <span className="btn-icon-inner">
+            {isMatched ? '✦' : isSearching ? '◉' : '⊕'}
+          </span>
+          <span className="btn-label">
+            {isMatched ? 'Connected' : isSearching ? 'Scanning…' : 'Find Partner'}
+          </span>
         </button>
       </div>
+
+      {/* Footer hint */}
+      {status === 'IDLE' && (
+        <p className="text-muted" style={{ fontSize: '0.8rem', marginTop: -20 }}>
+          Anonymous · Encrypted · Ephemeral
+        </p>
+      )}
     </div>
   );
 }

@@ -18,7 +18,7 @@ export const connectWebSocket = (token, onConnect, onError) => {
     return;
   }
 
-  const socket = new SockJS('http://localhost:8080/ws');
+  const socket = new SockJS('http://192.168.0.103:8080/ws');
   
   const connectHeaders = {};
   if (token) {

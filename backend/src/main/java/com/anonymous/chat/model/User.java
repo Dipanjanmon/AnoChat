@@ -5,47 +5,33 @@ import jakarta.persistence.*;
 @Entity
 @Table(name = "users")
 public class User {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Hashed or encrypted phone number for privacy
-    @Column(unique = true, nullable = false)
-    private String phoneNumber;
+    /**
+     * SHA-256 hash of the canonical +91XXXXXXXXXX phone number.
+     * The real phone number is NEVER stored — only this one-way hash.
+     */
+    @Column(name = "phone_hash", unique = true, nullable = false)
+    private String phoneHash;
 
-    @Column(nullable = false)
+    /**
+     * Randomly generated funny display name, e.g. "SleepyNarwhal#4821".
+     * This is the only identity the system knows. No real name, ever.
+     */
+    @Column(name = "anonymous_name", unique = true, nullable = false)
     private String anonymousName;
 
-    public User() {
-    }
+    public User() {}
 
-    public User(Long id, String phoneNumber, String anonymousName) {
-        this.id = id;
-        this.phoneNumber = phoneNumber;
-        this.anonymousName = anonymousName;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public Long getId() {
-        return id;
-    }
+    public String getPhoneHash() { return phoneHash; }
+    public void setPhoneHash(String phoneHash) { this.phoneHash = phoneHash; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getPhoneNumber() {
-        return phoneNumber;
-    }
-
-    public void setPhoneNumber(String phoneNumber) {
-        this.phoneNumber = phoneNumber;
-    }
-
-    public String getAnonymousName() {
-        return anonymousName;
-    }
-
-    public void setAnonymousName(String anonymousName) {
-        this.anonymousName = anonymousName;
-    }
+    public String getAnonymousName() { return anonymousName; }
+    public void setAnonymousName(String anonymousName) { this.anonymousName = anonymousName; }
 }

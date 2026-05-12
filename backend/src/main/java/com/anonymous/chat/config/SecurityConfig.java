@@ -30,6 +30,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> 
                 auth.requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers("/api/stats/**").permitAll()
                     .requestMatchers("/ws/**").permitAll() // WebSocket handshake handled separately
                     .anyRequest().authenticated()
             );
@@ -42,7 +43,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173")); // Vite default port
+        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://192.168.*.*:*", "http://172.*.*.*:*", "http://10.*.*.*:*")); // Allow all local network devices
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

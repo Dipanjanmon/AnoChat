@@ -12,64 +12,43 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 @Component
 public class WebSocketEventListener {
 
-    private static final String LIVE_USERS_HASH = "chat:user_connections";
-    private static final String LIVE_USERS_TOTAL = "chat:live_users_total";
+    /**
+     * Redis key: hash of anonymousName → number of active WS connections for that user.
+     * Only authenticated users are tracked here. Guest connections (landing page) are ignored.
+     */
+    private static final String LIVE_USERS_KEY = "chat:live_auth_users";
 
-    @Autowired
-    private StringRedisTemplate redisTemplate;
-
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
+    @Autowired private StringRedisTemplate redisTemplate;
+    @Autowired private SimpMessagingTemplate messagingTemplate;
 
     @EventListener
-    public void handleWebSocketConnectListener(SessionConnectedEvent event) {
-        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        
-        // Use session ID if user is not authenticated (for the landing page guest connections)
-        String userId = headerAccessor.getSessionId();
-        if (event.getUser() != null && event.getUser().getName() != null) {
-            userId = event.getUser().getName();
-        }
+    public void onConnect(SessionConnectedEvent event) {
+        // Only count authenticated users — guests have no Principal
+        if (event.getUser() == null || event.getUser().getName() == null) return;
 
-        // Increment the number of connections for this user
-        Long connections = redisTemplate.opsForHash().increment(LIVE_USERS_HASH, userId, 1);
-        
-        // If this is their first connection, they are a new unique live user
-        if (connections != null && connections == 1) {
-            Long total = redisTemplate.opsForValue().increment(LIVE_USERS_TOTAL);
-            broadcastLiveCount(total);
+        String userId = event.getUser().getName(); // anonymousName (JWT subject)
+
+        // SADD returns 1 if it's a new member, 0 if already present
+        Long added = redisTemplate.opsForSet().add(LIVE_USERS_KEY, userId);
+        if (added != null && added > 0) {
+            broadcastCount();
         }
     }
 
     @EventListener
-    public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
-        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        
-        String userId = headerAccessor.getSessionId();
-        if (event.getUser() != null && event.getUser().getName() != null) {
-            userId = event.getUser().getName();
-        }
+    public void onDisconnect(SessionDisconnectEvent event) {
+        if (event.getUser() == null || event.getUser().getName() == null) return;
 
-        // Decrement connection count
-        Long connections = redisTemplate.opsForHash().increment(LIVE_USERS_HASH, userId, -1);
-        
-        if (connections != null && connections <= 0) {
-            // Remove user from hash
-            redisTemplate.opsForHash().delete(LIVE_USERS_HASH, userId);
-            
-            // Decrement total live users
-            Long total = redisTemplate.opsForValue().decrement(LIVE_USERS_TOTAL);
-            if (total != null && total < 0) {
-                redisTemplate.opsForValue().set(LIVE_USERS_TOTAL, "0");
-                total = 0L;
-            }
-            broadcastLiveCount(total);
-        }
+        String userId = event.getUser().getName();
+
+        // Remove from live set
+        redisTemplate.opsForSet().remove(LIVE_USERS_KEY, userId);
+        broadcastCount();
     }
 
-    private void broadcastLiveCount(Long total) {
-        if (total != null) {
-            messagingTemplate.convertAndSend("/topic/stats", "{\"liveUsers\": " + total + "}");
-        }
+    private void broadcastCount() {
+        Long count = redisTemplate.opsForSet().size(LIVE_USERS_KEY);
+        long live = (count != null) ? count : 0;
+        messagingTemplate.convertAndSend("/topic/stats", "{\"liveUsers\": " + live + "}");
     }
 }

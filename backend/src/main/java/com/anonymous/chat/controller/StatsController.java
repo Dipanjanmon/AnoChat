@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -19,17 +18,9 @@ public class StatsController {
 
     @GetMapping("/live")
     public ResponseEntity<?> getLiveStats() {
-        String totalStr = redisTemplate.opsForValue().get("chat:live_users_total");
-        Long total = 0L;
-        if (totalStr != null) {
-            try {
-                total = Long.parseLong(totalStr);
-            } catch (NumberFormatException e) {
-                // Ignore
-            }
-        }
-        Map<String, Long> response = new HashMap<>();
-        response.put("liveUsers", total);
-        return ResponseEntity.ok(response);
+        // Count members in the authenticated-users Redis Set
+        Long count = redisTemplate.opsForSet().size("chat:live_auth_users");
+        long live = (count != null) ? count : 0;
+        return ResponseEntity.ok(Map.of("liveUsers", live));
     }
 }
